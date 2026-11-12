@@ -1,0 +1,40 @@
+name: Morning Macro Podcast
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 19 * * 0-4'
+    - cron: '30 20 * * 0-4'
+permissions:
+  contents: read
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Sydney local schedule
+        id: time
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || ( "$(TZ=Australia/Sydney date +%H)" == "06" && "$(TZ=Australia/Sydney date +%u)" -le 5 ) ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.time.outputs.run == 'true'
+      - uses: actions/setup-python@v5
+        if: steps.time.outputs.run == 'true'
+        with:
+          python-version: '3.11'
+      - name: Install speech library
+        if: steps.time.outputs.run == 'true'
+        run: pip install edge-tts==7.2.7
+      - name: Create podcast
+        if: steps.time.outputs.run == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python generate.py
+      - uses: actions/upload-artifact@v4
+        if: steps.time.outputs.run == 'true'
+        with:
+          name: morning-macro-${{ github.run_id }}
+          path: output/
+          retention-days: 30
